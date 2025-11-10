@@ -15,11 +15,11 @@ CUDA_VISIBLE_DEVICES=0,1 /home/zq/anaconda3/envs/afford/bin/torchrun --nnodes=1 
             diffusion.steps=1000 \
             task=text_to_motion_contact_motion_gen \
             task.dataset.sigma=0.8 \
-            task.train.batch_size=128 \
+            task.train.batch_size=64 \
             task.train.max_steps=600000 \
             task.train.save_every_step=100000 \
             task.dataset.train_transforms=['RandomEraseLang','RandomEraseContact','NumpyToTensor'] \
             model=cmdm \
-            model.arch='trans_rwkv' \
+            model.arch='trans_dec' \
             model.data_repr='h3d' \
             model.text_model.max_length=20
