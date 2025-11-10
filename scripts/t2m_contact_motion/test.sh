@@ -29,7 +29,7 @@ python test.py hydra/job_logging=none hydra/hydra_logging=none \
             diffusion.steps=1000 \
             task=text_to_motion_contact_motion_gen \
             model=cmdm \
-            model.arch='trans_enc' \
+            model.arch='trans_mamba' \
             model.data_repr='h3d' \
             model.text_model.max_length=20 \
             task.dataset.sigma=0.8 \

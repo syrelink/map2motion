@@ -10,9 +10,10 @@ from models.functions import load_and_freeze_clip_model, encode_text_clip, \
     load_and_freeze_bert_model, encode_text_bert, get_lang_feat_dim_type
 from models.functions import load_scene_model
 
+
 class PointSceneMLP(nn.Module):
 
-    def __init__(self, in_dim: int, out_dim: int, widening_factor: int=1, bias: bool=True) -> None:
+    def __init__(self, in_dim: int, out_dim: int, widening_factor: int = 1, bias: bool = True) -> None:
         super().__init__()
 
         self.mlp_pre = nn.Sequential(
@@ -38,9 +39,11 @@ class PointSceneMLP(nn.Module):
 
         return point_feat
 
+
 class ContactMLP(nn.Module):
 
-    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int, time_emb_dim: int) -> None:
+    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int,
+                 time_emb_dim: int) -> None:
         super().__init__()
 
         self.point_mlp_dims = arch_cfg.point_mlp_dims
@@ -50,11 +53,13 @@ class ContactMLP(nn.Module):
         layers = []
         idim = contact_dim + point_feat_dim + text_feat_dim + time_emb_dim
         for odim in self.point_mlp_dims:
-            layers.append(PointSceneMLP(idim, odim, widening_factor=self.point_mlp_widening_factor, bias=self.point_mlp_bias))
+            layers.append(
+                PointSceneMLP(idim, odim, widening_factor=self.point_mlp_widening_factor, bias=self.point_mlp_bias))
             idim = odim
         self.point_mlp = nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor, time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor,
+                time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
         """ Forward pass of the ContactMLP.
 
         Args:
@@ -62,7 +67,7 @@ class ContactMLP(nn.Module):
             point_feat: [bs, num_points, point_feat_dim]
             language_feat: [bs, 1, language_feat_dim]
             time_embedding: [bs, 1, time_embedding_dim]
-        
+
         Returns:
             Output contact map, [bs, num_points, contact_dim]
         """
@@ -73,21 +78,22 @@ class ContactMLP(nn.Module):
                 point_feat,
                 language_feat.repeat(1, num_points, 1),
                 time_embedding.repeat(1, num_points, 1)
-            ], dim=-1) # [bs, num_points, contact_dim + point_feat_dim + language_feat_dim + time_embedding_dim]
+            ], dim=-1)  # [bs, num_points, contact_dim + point_feat_dim + language_feat_dim + time_embedding_dim]
         else:
             x = torch.cat([
                 x,
                 language_feat.repeat(1, num_points, 1),
                 time_embedding.repeat(1, num_points, 1)
-            ], dim=-1) # [bs, num_points, contact_dim + language_feat_dim + time_embedding_dim]
-        x = self.point_mlp(x) # [bs, num_points, point_mlp_dim[-1]]
+            ], dim=-1)  # [bs, num_points, contact_dim + language_feat_dim + time_embedding_dim]
+        x = self.point_mlp(x)  # [bs, num_points, point_mlp_dim[-1]]
 
         return x
 
 
 class ContactPerceiver(nn.Module):
-    
-    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int, time_emb_dim: int) -> None:
+
+    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int,
+                 time_emb_dim: int) -> None:
         super().__init__()
 
         self.point_pos_emb = arch_cfg.point_pos_emb
@@ -99,7 +105,7 @@ class ContactPerceiver(nn.Module):
         self.encoder_dropout = arch_cfg.encoder_dropout
         self.encoder_residual_dropout = arch_cfg.encoder_residual_dropout
         self.encoder_self_attn_num_layers = arch_cfg.encoder_self_attn_num_layers
-        
+
         self.decoder_q_input_channels = arch_cfg.decoder_q_input_channels
         self.decoder_kv_input_channels = arch_cfg.decoder_kv_input_channels
         self.decoder_num_heads = arch_cfg.decoder_num_heads
@@ -117,7 +123,7 @@ class ContactPerceiver(nn.Module):
             bias=True)
 
         self.encoder_adapter = nn.Linear(
-            contact_dim + point_feat_dim + (3 if self.point_pos_emb else 0), 
+            contact_dim + point_feat_dim + (3 if self.point_pos_emb else 0),
             self.encoder_kv_input_channels,
             bias=True)
         self.decoder_adapter = nn.Linear(
@@ -152,7 +158,8 @@ class ContactPerceiver(nn.Module):
             residual_dropout=self.decoder_residual_dropout,
         )
 
-    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor, time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor,
+                time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
         """ Forward pass of the ContactMLP.
 
         Args:
@@ -160,58 +167,64 @@ class ContactPerceiver(nn.Module):
             point_feat: [bs, num_points, point_feat_dim]
             language_feat: [bs, 1, language_feat_dim]
             time_embedding: [bs, 1, time_embedding_dim]
-        
+
         Returns:
             Output contact map, [bs, num_points, contact_dim]
         """
         if point_feat is not None:
-            x = torch.cat([x, point_feat], dim=-1) # [bs, num_points, contact_dim + point_feat_dim]
+            x = torch.cat([x, point_feat], dim=-1)  # [bs, num_points, contact_dim + point_feat_dim]
         if self.point_pos_emb:
             point_pos = kwargs['c_pc_xyz']
-            x = torch.cat([x, point_pos], dim=-1) # [bs, num_points, contact_dim + point_feat_dim + 3]
+            x = torch.cat([x, point_pos], dim=-1)  # [bs, num_points, contact_dim + point_feat_dim + 3]
 
         # encoder
-        enc_kv = self.encoder_adapter(x) # [bs, num_points, enc_kv_dim]
+        enc_kv = self.encoder_adapter(x)  # [bs, num_points, enc_kv_dim]
 
-        language_feat = self.language_adapter(language_feat) # [bs, 1, enc_q_dim]
-        time_embedding = self.time_embedding_adapter(time_embedding) # [bs, 1, enc_q_dim]
-        enc_q = torch.cat([language_feat, time_embedding], dim=1) # [bs, 1 + 1, enc_q_dim]
+        language_feat = self.language_adapter(language_feat)  # [bs, 1, enc_q_dim]
+        time_embedding = self.time_embedding_adapter(time_embedding)  # [bs, 1, enc_q_dim]
+        enc_q = torch.cat([language_feat, time_embedding], dim=1)  # [bs, 1 + 1, enc_q_dim]
 
         enc_q = self.encoder_cross_attn(enc_q, enc_kv).last_hidden_state
         enc_q = self.encoder_self_attn(enc_q).last_hidden_state
 
         # decoder
         dec_kv = enc_q
-        dec_q = self.decoder_adapter(enc_kv) # [bs, num_points, dec_q_dim]
-        dec_q = self.decoder_cross_attn(dec_q, dec_kv).last_hidden_state # [bs, num_points, dec_q_dim]
+        dec_q = self.decoder_adapter(enc_kv)  # [bs, num_points, dec_q_dim]
+        dec_q = self.decoder_cross_attn(dec_q, dec_kv).last_hidden_state  # [bs, num_points, dec_q_dim]
 
         return dec_q
 
+
 class ContactPointTrans(nn.Module):
 
-    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int, time_emb_dim: int) -> None:
+    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int,
+                 time_emb_dim: int) -> None:
         super().__init__()
 
         self.num_points = arch_cfg.num_points
 
-        self.c = contact_dim + point_feat_dim + 3 # 3 for xyz
+        self.c = contact_dim + point_feat_dim + 3  # 3 for xyz
         block = PointTransformerBlock
         blocks = arch_cfg.blocks
 
         self.in_planes, planes = self.c, [64, 128, 256, 512]
         fpn_planes, fpnhead_planes, share_planes = 128, 64, 8
         stride, nsample = [1, 4, 4, 4], [8, 16, 16, 16]
-        self.enc1 = self._make_enc(block, planes[0], blocks[0], share_planes, stride=stride[0], nsample=nsample[0])  # N/1
-        self.enc2 = self._make_enc(block, planes[1], blocks[1], share_planes, stride=stride[1], nsample=nsample[1])  # N/4
-        self.enc3 = self._make_enc(block, planes[2], blocks[2], share_planes, stride=stride[2], nsample=nsample[2])  # N/16
-        self.enc4 = self._make_enc(block, planes[3], blocks[3], share_planes, stride=stride[3], nsample=nsample[3])  # N/64
+        self.enc1 = self._make_enc(block, planes[0], blocks[0], share_planes, stride=stride[0],
+                                   nsample=nsample[0])  # N/1
+        self.enc2 = self._make_enc(block, planes[1], blocks[1], share_planes, stride=stride[1],
+                                   nsample=nsample[1])  # N/4
+        self.enc3 = self._make_enc(block, planes[2], blocks[2], share_planes, stride=stride[2],
+                                   nsample=nsample[2])  # N/16
+        self.enc4 = self._make_enc(block, planes[3], blocks[3], share_planes, stride=stride[3],
+                                   nsample=nsample[3])  # N/64
 
         self.dec4 = self._make_dec(block, planes[3], 2, share_planes, nsample=nsample[3], is_head=True)  # transform p4
         self.dec3 = self._make_dec(block, planes[2], 2, share_planes, nsample=nsample[2])  # fusion p4 and p3
         self.dec2 = self._make_dec(block, planes[1], 2, share_planes, nsample=nsample[1])  # fusion p3 and p2
         self.dec1 = self._make_dec(block, planes[0], 2, share_planes, nsample=nsample[0])  # fusion p2 and p1
 
-        self.ctx  = self._make_ctx(planes[3] + text_feat_dim + time_emb_dim, planes[3])
+        self.ctx = self._make_ctx(planes[3] + text_feat_dim + time_emb_dim, planes[3])
 
     @property
     def num_groups(self):
@@ -242,7 +255,8 @@ class ContactPointTrans(nn.Module):
         ]
         return nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor, time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor,
+                time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
         """ Forward pass of the ContactMLP.
 
         Args:
@@ -250,15 +264,15 @@ class ContactPointTrans(nn.Module):
             point_feat: [bs, num_points, point_feat_dim]
             language_feat: [bs, 1, language_feat_dim]
             time_embedding: [bs, 1, time_embedding_dim]
-        
+
         Returns:
             Output contact map, [bs, num_points, contact_dim]
         """
         p = kwargs['c_pc_xyz']
 
         if point_feat is not None:
-            x = torch.cat([x, point_feat], dim=-1) # [bs, num_points, contact_dim + point_feat_dim]
-        context = torch.cat([language_feat, time_embedding], dim=-1) # [bs, language_feat_dim + time_embedding_dim]
+            x = torch.cat([x, point_feat], dim=-1)  # [bs, num_points, contact_dim + point_feat_dim]
+        context = torch.cat([language_feat, time_embedding], dim=-1)  # [bs, language_feat_dim + time_embedding_dim]
 
         offset, count = [], 0
         for item in p:
@@ -267,7 +281,7 @@ class ContactPointTrans(nn.Module):
         p0 = rearrange(p, 'b n d -> (b n) d')
         x0 = rearrange(x, 'b n d -> (b n) d')
         o0 = torch.IntTensor(offset).to(p0.device)
-        
+
         x0 = p0 if self.c == 3 else torch.cat((p0, x0), 1)
         p1, x1, o1 = self.enc1([p0, x0, o0])
         p2, x2, o2 = self.enc2([p1, x1, o1])
@@ -284,35 +298,41 @@ class ContactPointTrans(nn.Module):
         x2 = self.dec2[1:]([p2, self.dec2[0]([p2, x2, o2], [p3, x3, o3]), o2])[1]
         x1 = self.dec1[1:]([p1, self.dec1[0]([p1, x1, o1], [p2, x2, o2]), o1])[1]
 
-        return rearrange(x1, '(b n) d -> b n d', b=len(offset), n=offset[0]) # (b, n, planes[0])
+        return rearrange(x1, '(b n) d -> b n d', b=len(offset), n=offset[0])  # (b, n, planes[0])
+
 
 class ContactPointTransV2(nn.Module):
 
-    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int, time_emb_dim: int) -> None:
+    def __init__(self, arch_cfg: DictConfig, contact_dim: int, point_feat_dim: int, text_feat_dim: int,
+                 time_emb_dim: int) -> None:
         super().__init__()
 
         self.num_points = arch_cfg.num_points
 
-        self.c = contact_dim + point_feat_dim + 3 # 3 for xyz
+        self.c = contact_dim + point_feat_dim + 3  # 3 for xyz
         block = PointTransformerBlock
         blocks = arch_cfg.blocks
 
         self.in_planes, planes = self.c, [64, 128, 256, 512]
         fpn_planes, fpnhead_planes, share_planes = 128, 64, 8
         stride, nsample = [1, 4, 4, 4], [8, 16, 16, 16]
-        self.enc1 = self._make_enc(block, planes[0], blocks[0], share_planes, stride=stride[0], nsample=nsample[0])  # N/1
-        self.enc2 = self._make_enc(block, planes[1], blocks[1], share_planes, stride=stride[1], nsample=nsample[1])  # N/4
-        self.enc3 = self._make_enc(block, planes[2], blocks[2], share_planes, stride=stride[2], nsample=nsample[2])  # N/16
-        self.enc4 = self._make_enc(block, planes[3], blocks[3], share_planes, stride=stride[3], nsample=nsample[3])  # N/64
+        self.enc1 = self._make_enc(block, planes[0], blocks[0], share_planes, stride=stride[0],
+                                   nsample=nsample[0])  # N/1
+        self.enc2 = self._make_enc(block, planes[1], blocks[1], share_planes, stride=stride[1],
+                                   nsample=nsample[1])  # N/4
+        self.enc3 = self._make_enc(block, planes[2], blocks[2], share_planes, stride=stride[2],
+                                   nsample=nsample[2])  # N/16
+        self.enc4 = self._make_enc(block, planes[3], blocks[3], share_planes, stride=stride[3],
+                                   nsample=nsample[3])  # N/64
 
         self.dec4 = self._make_dec(block, planes[3], 2, share_planes, nsample=nsample[3], is_head=True)  # transform p4
         self.dec3 = self._make_dec(block, planes[2], 2, share_planes, nsample=nsample[2])  # fusion p4 and p3
         self.dec2 = self._make_dec(block, planes[1], 2, share_planes, nsample=nsample[1])  # fusion p3 and p2
         self.dec1 = self._make_dec(block, planes[0], 2, share_planes, nsample=nsample[0])  # fusion p2 and p1
 
-        self.ctx4  = self._make_ctx(planes[3] + text_feat_dim + time_emb_dim, planes[3])
-        self.ctx3  = self._make_ctx(planes[2] + text_feat_dim + time_emb_dim, planes[2])
-        self.ctx2  = self._make_ctx(planes[1] + text_feat_dim + time_emb_dim, planes[1])
+        self.ctx4 = self._make_ctx(planes[3] + text_feat_dim + time_emb_dim, planes[3])
+        self.ctx3 = self._make_ctx(planes[2] + text_feat_dim + time_emb_dim, planes[2])
+        self.ctx2 = self._make_ctx(planes[1] + text_feat_dim + time_emb_dim, planes[1])
 
         self.self_attn_layers = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(
@@ -325,7 +345,7 @@ class ContactPointTransV2(nn.Module):
             ),
             num_layers=1
         )
-    
+
     @property
     def num_groups(self):
         return self.num_points // 64
@@ -355,7 +375,8 @@ class ContactPointTransV2(nn.Module):
         ]
         return nn.Sequential(*layers)
 
-    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor, time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, point_feat: torch.Tensor, language_feat: torch.Tensor,
+                time_embedding: torch.Tensor, **kwargs) -> torch.Tensor:
         """ Forward pass of the ContactMLP.
 
         Args:
@@ -363,16 +384,16 @@ class ContactPointTransV2(nn.Module):
             point_feat: [bs, num_points, point_feat_dim]
             language_feat: [bs, 1, language_feat_dim]
             time_embedding: [bs, 1, time_embedding_dim]
-        
+
         Returns:
             Output contact map, [bs, num_points, contact_dim]
         """
         p = kwargs['c_pc_xyz']
 
         if point_feat is not None:
-            x = torch.cat([x, point_feat], dim=-1) # [bs, num_points, contact_dim + point_feat_dim]
-        context = torch.cat([language_feat, time_embedding], dim=-1) # [bs, 1, language_feat_dim + time_embedding_dim]
-        
+            x = torch.cat([x, point_feat], dim=-1)  # [bs, num_points, contact_dim + point_feat_dim]
+        context = torch.cat([language_feat, time_embedding], dim=-1)  # [bs, 1, language_feat_dim + time_embedding_dim]
+
         offset, count = [], 0
         for item in p:
             count += item.shape[0]
@@ -380,7 +401,7 @@ class ContactPointTransV2(nn.Module):
         p0 = rearrange(p, 'b n d -> (b n) d')
         x0 = rearrange(x, 'b n d -> (b n) d')
         o0 = torch.IntTensor(offset).to(p0.device)
-        
+
         ## transition down
         x0 = p0 if self.c == 3 else torch.cat((p0, x0), 1)
         p1, x1, o1 = self.enc1([p0, x0, o0])
@@ -407,7 +428,8 @@ class ContactPointTransV2(nn.Module):
 
         x1 = self.dec1[1:]([p1, self.dec1[0]([p1, x1, o1], [p2, x2, o2]), o1])[1]
 
-        return rearrange(x1, '(b n) d -> b n d', b=len(offset)) # (b, n, planes[0])
+        return rearrange(x1, '(b n) d -> b n d', b=len(offset))  # (b, n, planes[0])
+
 
 @Model.register()
 class CDM(nn.Module):
@@ -442,7 +464,8 @@ class CDM(nn.Module):
             self.scene_model_dim = 3 + int(cfg.scene_model.use_color) * 3
             self.freeze_scene_model = cfg.scene_model.freeze
             self.scene_model = load_scene_model(
-                cfg.scene_model.name, self.scene_model_dim, cfg.scene_model.num_points, cfg.scene_model.pretrained_weight, freeze=self.freeze_scene_model)
+                cfg.scene_model.name, self.scene_model_dim, cfg.scene_model.num_points,
+                cfg.scene_model.pretrained_weight, freeze=self.freeze_scene_model)
             self.point_feat_dim = cfg.scene_model.point_feat_dim
 
         ## model architecture
@@ -473,22 +496,24 @@ class CDM(nn.Module):
 
     def forward(self, x, timesteps, **kwargs):
         """ Forward pass of the model.
-        
+
         Args:
             x: input contact map, [bs, num_points, contact_dim]
             kwargs: other inputs, e.g., text, etc.
-        
+
         Returns:
             Output contact map, [bs, num_points, contact_dim]
         """
         ## time embedding
-        time_emb = self.timestep_embedder(timesteps) # [bs, 1, time_emb_dim]
+        time_emb = self.timestep_embedder(timesteps)  # [bs, 1, time_emb_dim]
 
         ## text embedding
         if self.text_feat_type == 'clip':
-            text_emb = encode_text_clip(self.text_model, kwargs['c_text'], max_length=self.text_max_length, device=self.device)
+            text_emb = encode_text_clip(self.text_model, kwargs['c_text'], max_length=self.text_max_length,
+                                        device=self.device)
         elif self.text_feat_type == 'bert':
-            text_emb = encode_text_bert(self.tokenizer, self.text_model, kwargs['c_text'], max_length=self.text_max_length, s_feat=True, device=self.device)
+            text_emb = encode_text_bert(self.tokenizer, self.text_model, kwargs['c_text'],
+                                        max_length=self.text_max_length, s_feat=True, device=self.device)
         else:
             raise NotImplementedError
         text_emb = text_emb.unsqueeze(1).detach().float()  # [bs, 1, text_feat_dim]
@@ -501,13 +526,14 @@ class CDM(nn.Module):
                 if kwargs['c_pc_feat'].shape[-1] == 1:
                     pc_emb = kwargs['c_pc_feat']
                 else:
-                    pc_emb = einsum(kwargs['c_pc_feat'], text_emb, 'b n d, b m d -> b n m') # [bs, num_points, 1]
+                    pc_emb = einsum(kwargs['c_pc_feat'], text_emb, 'b n d, b m d -> b n m')  # [bs, num_points, 1]
             else:
-                pc_emb = kwargs['c_pc_feat'] # [bs, num_points, 768]
+                pc_emb = kwargs['c_pc_feat']  # [bs, num_points, 768]
         else:
-            pc_emb = self.scene_model((kwargs['c_pc_xyz'], kwargs['c_pc_feat'])).detach() # [bs, num_points, point_feat_dim]
+            pc_emb = self.scene_model(
+                (kwargs['c_pc_xyz'], kwargs['c_pc_feat'])).detach()  # [bs, num_points, point_feat_dim]
 
-        x = self.contact_model(x, pc_emb, text_emb, time_emb, **kwargs) # [bs, num_points, last_dim]
-        x = self.contact_layer(x) # [bs, num_points, contact_dim]
+        x = self.contact_model(x, pc_emb, text_emb, time_emb, **kwargs)  # [bs, num_points, last_dim]
+        x = self.contact_layer(x)  # [bs, num_points, contact_dim]
 
         return x

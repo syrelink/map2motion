@@ -8,6 +8,9 @@ from models.modules import SceneMapEncoderDecoder, SceneMapEncoder
 from models.functions import load_and_freeze_clip_model, encode_text_clip, \
     load_and_freeze_bert_model, encode_text_bert, get_lang_feat_dim_type
 from utils.misc import compute_repr_dimesion
+from models.mamba_trans import *
+# from models.vrwkv import *
+
 
 @Model.register()
 class CMDM(nn.Module):
@@ -36,6 +39,9 @@ class CMDM(nn.Module):
             self.contact_adapter = nn.Linear(self.planes[-1], self.latent_dim, bias=True)
         elif self.arch == 'trans_dec':
             SceneMapModule = SceneMapEncoderDecoder
+        elif self.arch == 'trans_mamba':
+            SceneMapModule = SceneMapEncoder
+            self.contact_adapter = nn.Linear(self.planes[-1], self.latent_dim, bias=True)
         else:
             raise NotImplementedError
         self.contact_encoder = SceneMapModule(
@@ -75,6 +81,15 @@ class CMDM(nn.Module):
                 enable_nested_tensor=False,
                 num_layers=sum(cfg.num_layers),
             )
+        elif self.arch == 'trans_mamba':
+            self.self_attn_layer = MambaTransBackbone(
+                    num_layers=sum(cfg.num_layers),
+                    latent_dim=self.latent_dim,
+                    num_heads=cfg.num_heads,
+                    ff_size=cfg.dim_feedforward,
+                    dropout=0.1,
+                    drop_path_rate=0.1
+                )
         elif self.arch == 'trans_dec':
             self.self_attn_layers = nn.ModuleList()
             self.kv_mappling_layers = nn.ModuleList()
@@ -168,6 +183,33 @@ class CMDM(nn.Module):
 
             non_motion_token = time_mask.shape[1] + text_mask.shape[1] + cont_mask.shape[1]
             x = x[:, non_motion_token:, :]
+        if self.arch == 'trans_mamba':
+            # 1. 将所有序列拼接成一个长序列：[时间, 文本, 接触, 运动]
+            x = torch.cat([time_emb, text_emb, cont_emb, x],
+                          dim=1)  # [bs, total_len, latent_dim] (B, L, C)
+
+            # 2. 准备 MambaTransBackbone 所需的 (L, B, C) 格式
+            #    我们假设 self.positional_encoder 期望 L, B, C 并返回 L, B, C
+            x_permuted = x.permute(1, 0, 2)
+            x_with_pos = self.positional_encoder(x_permuted)  # [total_len, bs, latent_dim] (L, B, C)
+
+            # 3. 准备掩码
+            x_mask = None
+            if self.mask_motion:
+                # 拼接对应的掩码
+                x_mask = torch.cat([time_mask, text_mask, cont_mask, kwargs['x_mask']], dim=1)  # (B, L)
+
+            # 4. 通过 MambaTransBackbone
+            # 它的 forward 接受 (L, B, C) 输入和 (B, L) 掩码，并返回 (L, B, C)
+            x_processed = self.self_attn_layer(x_with_pos, src_key_padding_mask=x_mask)
+
+            # 5. 转换回 (B, L, C) 格式，以便进行后续切片
+            x = x_processed.permute(1, 0, 2)  # [bs, total_len, latent_dim] (B, L, C)
+
+            # 6. 从输出序列中提取出属于运动的部分
+            non_motion_token = time_mask.shape[1] + text_mask.shape[1] + cont_mask.shape[1]
+            x = x[:, non_motion_token:, :]
+
         elif self.arch == 'trans_dec':
             x = torch.cat([time_emb, text_emb, x], dim=1) # [bs, 2 + seq_len, latent_dim]
             x = self.positional_encoder(x.permute(1, 0, 2)).permute(1, 0, 2)
