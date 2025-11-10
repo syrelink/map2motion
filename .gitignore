@@ -1,1 +1,16 @@
-*.whl
+# 忽略项目运行时生成的模型文件和数据
+body_models/
+data/
+outputs/
+
+# 忽略 Python 编译生成的缓存目录
+# __pycache__ 目录通常包含 Python 编译后的字节码文件（.pyc），不应提交。
+*__pycache__/
+
+# 针对特定路径的缓存
+datasets/__pycache__/
+diffusion/__pycache__/
+models/__pycache__/
+models/scene_models/__pycache__/
+utils/__pycache__/
+utils/eval/__pycache__/
