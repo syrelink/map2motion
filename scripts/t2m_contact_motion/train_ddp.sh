@@ -1,6 +1,8 @@
 EXP_NAME=$1
 PORT=$2
 
+conda activate afford
+
 if [ -z "$PORT" ]
 then
     PORT=29500
