@@ -101,16 +101,6 @@ class CMDM(nn.Module):
                 )
             # 4 将所有块打包成一个 nn.Sequential 模块
             self.self_attn_layer = nn.Sequential(*rwkv_blocks)
-
-            # self.self_attn_layer = nn.Sequential(
-            #         *[Block_time(
-            #             n_embd=self.latent_dim,
-            #             n_layer=sum(self.num_layers), # 总层数，用于fancy init
-            #             layer_id=sum(self.num_layers[:i]) + layer_idx, # 当前块的全局ID
-            #             hidden_rate=4, # FFN的隐藏层倍率，可设为超参数
-            #             # drop_path, init_values 等参数也可以根据需要添加
-            #         ) for layer_idx in range(n)]
-            #     )
         elif self.arch == 'trans_mamba':
             self.self_attn_layer = MambaTransBackbone(
                     num_layers=sum(cfg.num_layers),
