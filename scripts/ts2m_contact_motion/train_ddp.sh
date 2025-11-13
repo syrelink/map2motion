@@ -22,5 +22,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes=1 --nproc_per_node=4 --rdzv_backe
             task.dataset.train_transforms=['RandomRotation','ApplyTransformCMDM','RandomMaskLang','NumpyToTensor'] \
             task.dataset.mix_train_ratio=0.0 \
             model=cmdm \
-            model.arch='trans_enc' \
+            model.arch='trans_rwkv' \
             model.time_emb_dim=128
