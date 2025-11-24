@@ -213,7 +213,7 @@ class CMDM(nn.Module):
 
             non_motion_token = time_mask.shape[1] + text_mask.shape[1] + cont_mask.shape[1]
             x = x[:, non_motion_token:, :]
-        if self.arch == 'trans_mamba':
+        elif self.arch == 'trans_mamba':
             # 1. 将所有序列拼接成一个长序列：[时间, 文本, 接触, 运动]
             x = torch.cat([time_emb, text_emb, cont_emb, x],
                           dim=1)  # [bs, total_len, latent_dim] (B, L, C)
