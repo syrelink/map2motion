@@ -6,14 +6,14 @@ then
     PORT=29500
 fi
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes=1 --nproc_per_node=4 --rdzv_backend=c10d --rdzv_endpoint=localhost:${PORT} train_ddp.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes=1 --nproc_per_node=2 --rdzv_backend=c10d --rdzv_endpoint=localhost:${PORT} train_ddp.py \
             hydra/job_logging=none hydra/hydra_logging=none \
             exp_name=${EXP_NAME} \
             output_dir=outputs \
             platform=TensorBoard \
             diffusion.steps=500 \
             task=contact_motion_gen \
-            task.train.batch_size=32 \
+            task.train.batch_size=64 \
             task.train.max_steps=400000 \
             task.train.save_every_step=100000 \
             task.train.phase=train \
