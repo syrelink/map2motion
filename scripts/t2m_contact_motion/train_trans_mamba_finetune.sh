@@ -28,3 +28,10 @@ CUDA_VISIBLE_DEVICES=0,1 /home/zq/anaconda3/envs/afford/bin/torchrun --nnodes=1 
             model.mamba_layers=1 \
             pretrained_ckpt=${PRETRAINED_CKPT} \
             task.train.resume_ckpt=null
+
+'''
+bash scripts/t2m_contact_motion/train_trans_mamba_finetune.sh \
+    "CMDM-TransMamba-Finetune" \
+    "/path/to/your/pretrained/encoder/checkpoint.pt" \
+    29500
+'''
