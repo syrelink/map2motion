@@ -23,10 +23,21 @@ text_model:
   max_length: 32
 
 ## model architecture
-arch: 'trans_enc'
+arch: 'trans_mamba'
 latent_dim: 512
 mask_motion: true
-num_layers: [1,1,1,1,1]
+num_layers: [1,1,1,1,1]  # 5层，总共4层Transformer + 1层Mamba
 num_heads: 8
 dropout: 0.1
 dim_feedforward: 1024
+
+# Mamba 相关配置
+mamba_layers: 1  # 最后1层使用Mamba
+mamba_d_state: 16
+mamba_d_conv: 4
+mamba_expand: 2
+mamba_drop_path: 0.0
+
+# 冻结参数配置
+freeze_transformer_layers: true
+frozen_layers: [0, 1, 2, 3]  # 冻结前4层（0-3），只训练第4层（索引3是第4层）

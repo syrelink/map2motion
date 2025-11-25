@@ -27,6 +27,9 @@ platform: 'TensorBoard' # ['TensorBoard', 'WanDB']
 ## device
 gpu: 0
 
+## pretrained checkpoint for finetuning
+pretrained_ckpt: null
+
 ## diffusion
 diffusion:
   predict_xstart: true

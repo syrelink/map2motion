@@ -24,6 +24,10 @@ class CMDM(nn.Module):
 
         self.arch = cfg.arch
 
+        # 冻结参数相关配置
+        self.freeze_transformer_layers = getattr(cfg, 'freeze_transformer_layers', False)
+        self.frozen_layers = getattr(cfg, 'frozen_layers', [])  # 要冻结的层索引列表
+
         ## time embedding
         self.time_emb_dim = cfg.time_emb_dim
         self.timestep_embedder = TimestepEmbedder(self.latent_dim, self.time_emb_dim, max_len=1000)
@@ -174,6 +178,73 @@ class CMDM(nn.Module):
         else:
             raise NotImplementedError
         self.motion_layer = nn.Linear(self.latent_dim, self.motion_dim, bias=True)
+
+        # 冻结指定的层
+        if self.freeze_transformer_layers and hasattr(self, 'encoder_layers'):
+            self._freeze_layers()
+
+    def _freeze_layers(self):
+        """冻结指定的层参数"""
+        if not hasattr(self, 'encoder_layers'):
+            return
+
+        for idx, layer in enumerate(self.encoder_layers):
+            if idx in self.frozen_layers:
+                for param in layer.parameters():
+                    param.requires_grad = False
+                print(f"Frozen layer {idx}: {type(layer).__name__}")
+
+    def load_pretrained_weights(self, path: str):
+        """加载预训练权重，支持部分参数加载（跳过冻结的参数）"""
+        import torch
+        assert torch.cuda.is_available() or torch.backends.mps.is_available(), 'CUDA or MPS is required for loading pretrained weights.'
+
+        saved_state_dict = torch.load(path, map_location='cpu')
+        model_state_dict = self.state_dict()
+
+        unchanged_weights = []
+        used_weights = []
+        skipped_frozen_weights = []
+
+        for key in model_state_dict:
+            # 检查参数是否属于冻结的层
+            is_frozen_param = False
+            if hasattr(self, 'encoder_layers') and self.freeze_transformer_layers:
+                for idx, layer in enumerate(self.encoder_layers):
+                    if idx in self.frozen_layers:
+                        layer_prefix = f'encoder_layers.{idx}'
+                        if key.startswith(layer_prefix):
+                            is_frozen_param = True
+                            break
+
+            if is_frozen_param:
+                skipped_frozen_weights.append(key)
+                continue
+
+            ## current state and saved state both on single GPU or both on multi GPUs
+            if key in saved_state_dict:
+                model_state_dict[key] = saved_state_dict[key]
+                used_weights.append(key)
+
+            ## current state on single GPU and saved state on multi GPUs
+            elif 'module.'+key in saved_state_dict:
+                model_state_dict[key] = saved_state_dict['module.'+key]
+                used_weights.append('module.'+key)
+
+            else:
+                unchanged_weights.append(key)
+
+        unused_weights = []
+        for key in saved_state_dict:
+            if key not in used_weights and 'module.'+key not in used_weights:
+                unused_weights.append(key)
+
+        print(f"Loaded {len(used_weights)} parameters from pretrained weights")
+        print(f"Skipped {len(skipped_frozen_weights)} frozen parameters")
+        print(f"Unchanged {len(unchanged_weights)} parameters")
+        print(f"Unused {len(unused_weights)} parameters from checkpoint")
+
+        self.load_state_dict(model_state_dict)
 
     def forward(self, x, timesteps, **kwargs):
         """ Forward pass of the model.
