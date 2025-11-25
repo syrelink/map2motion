@@ -28,7 +28,7 @@ platform: 'TensorBoard' # ['TensorBoard', 'WanDB']
 gpu: 0
 
 ## pretrained checkpoint for finetuning
-pretrained_ckpt: null
+pretrained_ckpt: 'outputs/2025-09-15_15-05-55_RTX4090-real/ckpt/model400000.pt'
 
 ## diffusion
 diffusion:
