@@ -12,22 +12,25 @@
 ### 2. 运行微调训练
 
 ```bash
-# 基本用法
+# 全新训练
 bash scripts/t2m_contact_motion/train_trans_mamba_finetune.sh \
     "CMDM-TransMamba-Finetune" \
     "/path/to/your/pretrained/encoder/checkpoint.pt" \
     29500
 
-# 如果使用默认端口（29500）
+# 从断点恢复训练（添加第三个参数为resume checkpoint路径）
 bash scripts/t2m_contact_motion/train_trans_mamba_finetune.sh \
     "CMDM-TransMamba-Finetune" \
-    "/path/to/your/pretrained/encoder/checkpoint.pt"
+    "/path/to/your/pretrained/encoder/checkpoint.pt" \
+    "/path/to/resume/checkpoint.pt" \
+    29500
 ```
 
 ### 3. 参数说明
 
 - `EXP_NAME`: 实验名称，用于创建输出目录
 - `PRETRAINED_CKPT_PATH`: 预训练checkpoint的完整路径（必需）
+- `RESUME_CKPT_PATH`: 从断点恢复的checkpoint路径（可选，用于恢复训练）
 - `PORT`: 多GPU训练的端口号（可选，默认29500）
 
 ## 🔧 架构说明
